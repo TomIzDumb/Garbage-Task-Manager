@@ -1,0 +1,546 @@
+<html><head><base href=".">
+<meta charset="UTF-8">
+<title>Garbage Task Manager</title>
+<script src="script.js"></script>
+<style>
+:root {
+  --primary: #2196f3;
+  --bg: #1a1a1a;
+  --card-bg: #2d2d2d;
+  --text: #ffffff;
+  --list-bg: #333333;
+  --hover-bg: #404040;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  -webkit-user-select: none;  /* Safari */
+  -ms-user-select: none;      /* IE 10 and IE 11 */
+  user-select: none;          /* Standard syntax */
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  padding: 20px;
+}
+
+.board {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding: 20px 0;
+  min-height: calc(100vh - 100px);
+  -ms-overflow-style: none;  /* Hide scrollbar for IE/Edge */
+  scrollbar-width: none;  /* Hide scrollbar for Firefox */
+  cursor: default; /* Default cursor when not dragging */
+}
+
+.board::-webkit-scrollbar {
+  display: none;  /* Hide scrollbar for Chrome/Safari/Opera */
+}
+
+.board:active {
+  cursor: grabbing; /* Change cursor while dragging */
+}
+
+.list {
+  background: var(--list-bg);
+  border-radius: 10px;
+  min-width: 300px;
+  padding: 10px;
+}
+
+.list-header {
+  padding: 10px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.list-title {
+  font-weight: 600;
+  font-size: 1.1em;
+  cursor: pointer;
+}
+
+.list-title:hover {
+  opacity: 0.8;
+}
+
+.task-cards {
+  min-height: 50px;
+}
+
+.task {
+  background: var(--card-bg);
+  border-radius: 8px;
+  padding: 15px;
+  margin: 10px 0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  cursor: grab;
+  position: relative;
+}
+
+.task:active {
+  cursor: grabbing;
+}
+
+.task img {
+  max-width: 200px;
+  max-height: 150px;
+  border-radius: 4px;
+  margin-top: 10px;
+  object-fit: cover;
+}
+
+.task-title {
+  font-weight: 500;
+  margin-bottom: 5px;
+  cursor: pointer;
+}
+
+.task-title:hover {
+  opacity: 0.8;
+}
+
+.difficulty {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  background: var(--primary);
+  color: white;
+}
+
+.controls {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.controls button {
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.controls button svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+button {
+  border: none;
+  border-radius: 6px;
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+.context-menu {
+  position: fixed; /* Change from position: fixed */
+  background: var(--card-bg);
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  padding: 5px 0;
+  z-index: 1000;
+}
+
+.context-menu-item {
+  padding: 8px 15px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.context-menu-item:hover {
+  background: var(--hover-bg);
+}
+
+.ghost {
+  opacity: 0.5;
+}
+
+.add-list-btn {
+  min-width: 300px;
+  height: 50px;
+  border: 2px dashed #666;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: transparent;
+  color: #888;
+}
+
+.add-task-btn {
+  width: 100%;
+  margin-top: 10px;
+  background: transparent;
+  border: 2px dashed #666;
+  color: #888;
+}
+</style>
+</head>
+<body>
+<div class="board" id="board">
+  <!-- Lists will be generated here -->
+</div>
+
+<div class="controls">
+  <button onclick="saveBoard()">
+    <!-- SVG icon for save -->
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 0H5C3.34 0 2 1.34 2 3v18c0 1.66 1.34 3 3 3h14c1.66 0 3-1.34 3-3V3c0-1.66-1.34-3-3-3zm1 21H4V3h15v3h3v15z"/></svg>
+  </button>
+  <input type="file" id="loadFile" style="display: none" onchange="loadBoard(this.files[0])">
+  <button onclick="document.getElementById(&apos;loadFile&apos;).click()">
+    <!-- SVG icon for load -->
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 10h-4V4h-2v6H7l5 5 5-5zm-6 12c-4.41 0-8-3.59-8-8h2c0 3.31 2.69 6 6 6s6-2.69 6-6h2c0 4.41-3.59 8-8 8z"/></svg>
+  </button>
+</div>
+
+<script>let lists = [];
+let contextMenu = null;
+function initBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  lists.forEach(list => {
+    const listElement = createList(list.title, list.tasks);
+    board.appendChild(listElement);
+  });
+  new Sortable(board, {
+    animation: 150,
+    draggable: '.list',
+    ghostClass: 'ghost',
+    onEnd: function (evt) {
+      const listEl = evt.item;
+      const listTitle = listEl.querySelector('.list-title').textContent;
+      const listData = lists.find(l => l.title === listTitle);
+      lists.splice(evt.oldIndex, 1);
+      lists.splice(evt.newIndex, 0, listData);
+    }
+  });
+  const addListBtn = document.createElement('div');
+  addListBtn.className = 'add-list-btn';
+  addListBtn.textContent = '+ Add List';
+  addListBtn.onclick = () => {
+    const title = prompt('Enter list title:');
+    if (title) {
+      lists.push({
+        title,
+        tasks: []
+      });
+      initBoard();
+    }
+  };
+  board.appendChild(addListBtn);
+}
+function createList(title, tasks = []) {
+  const list = document.createElement('div');
+  list.className = 'list';
+  const header = document.createElement('div');
+  header.className = 'list-header';
+  const titleEl = document.createElement('div');
+  titleEl.className = 'list-title';
+  titleEl.textContent = title;
+  titleEl.onclick = () => {
+    const newTitle = prompt('Enter new list title:', title);
+    if (newTitle) {
+      const listIndex = lists.findIndex(l => l.title === title);
+      lists[listIndex].title = newTitle;
+      initBoard();
+    }
+  };
+  header.appendChild(titleEl);
+  list.appendChild(header);
+  const taskContainer = document.createElement('div');
+  taskContainer.className = 'task-cards';
+  tasks.forEach(task => {
+    const taskEl = createTask(task);
+    taskContainer.appendChild(taskEl);
+  });
+  list.appendChild(taskContainer);
+  const addTaskBtn = document.createElement('button');
+  addTaskBtn.className = 'add-task-btn';
+  addTaskBtn.textContent = '+ Add Task';
+  addTaskBtn.onclick = () => {
+    const taskTitle = prompt('Enter task title:');
+    if (taskTitle) {
+      const listIndex = lists.findIndex(l => l.title === title);
+      lists[listIndex].tasks.push({
+        title: taskTitle,
+        difficulty: 'Normal',
+        image: null
+      });
+      initBoard();
+    }
+  };
+  list.appendChild(addTaskBtn);
+  new Sortable(taskContainer, {
+    group: 'shared',
+    animation: 150,
+    ghostClass: 'ghost',
+    onEnd: function (evt) {
+      const fromListTitle = evt.from.closest('.list').querySelector('.list-title').textContent;
+      const toListTitle = evt.to.closest('.list').querySelector('.list-title').textContent;
+      const fromListIndex = lists.findIndex(l => l.title === fromListTitle);
+      const toListIndex = lists.findIndex(l => l.title === toListTitle);
+      const task = lists[fromListIndex].tasks[evt.oldIndex];
+      lists[fromListIndex].tasks.splice(evt.oldIndex, 1);
+      lists[toListIndex].tasks.splice(evt.newIndex, 0, task);
+    }
+  });
+  list.addEventListener('contextmenu', e => {
+    if (e.target.closest('.task')) return;
+    e.preventDefault();
+    showContextMenu(e, [{
+      text: 'Delete List',
+      action: () => {
+        const listIndex = lists.findIndex(l => l.title === title);
+        lists.splice(listIndex, 1);
+        initBoard();
+      }
+    }, {
+      text: 'Rename List',
+      action: () => {
+        const newTitle = prompt('Enter new list title:', title);
+        if (newTitle) {
+          const listIndex = lists.findIndex(l => l.title === title);
+          lists[listIndex].title = newTitle;
+          initBoard();
+        }
+      }
+    }]);
+  });
+  return list;
+}
+function createTask(task) {
+  const taskEl = document.createElement('div');
+  taskEl.className = 'task';
+  const titleEl = document.createElement('div');
+  titleEl.className = 'task-title';
+  titleEl.textContent = task.title;
+  const difficultyEl = document.createElement('div');
+  difficultyEl.className = 'difficulty';
+  difficultyEl.textContent = task.difficulty;
+  taskEl.appendChild(titleEl);
+  taskEl.appendChild(difficultyEl);
+  if (task.image) {
+    const img = document.createElement('img');
+    img.src = task.image;
+    taskEl.appendChild(img);
+  }
+  taskEl.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    showContextMenu(e, [{
+      text: 'Delete Task',
+      action: () => {
+        const listElement = e.target.closest('.list');
+        const listTitle = listElement.querySelector('.list-title').textContent;
+        const listIndex = lists.findIndex(l => l.title === listTitle);
+        const taskIndex = lists[listIndex].tasks.findIndex(t => t.title === task.title);
+        lists[listIndex].tasks.splice(taskIndex, 1);
+        initBoard();
+      }
+    }, {
+      text: 'Rename Task',
+      action: () => {
+        const newTitle = prompt('Enter new task title:', task.title);
+        if (newTitle) {
+          const listElement = e.target.closest('.list');
+          const listTitle = listElement.querySelector('.list-title').textContent;
+          const listIndex = lists.findIndex(l => l.title === listTitle);
+          const taskIndex = lists[listIndex].tasks.findIndex(t => t.title === task.title);
+          lists[listIndex].tasks[taskIndex].title = newTitle;
+          initBoard();
+        }
+      }
+    }, {
+      text: 'Set Difficulty',
+      action: () => {
+        const difficulty = prompt('Enter difficulty (Easy/Normal/Hard):', task.difficulty);
+        if (difficulty) {
+          const listElement = e.target.closest('.list');
+          const listTitle = listElement.querySelector('.list-title').textContent;
+          const listIndex = lists.findIndex(l => l.title === listTitle);
+          const taskIndex = lists[listIndex].tasks.findIndex(t => t.title === task.title);
+          lists[listIndex].tasks[taskIndex].difficulty = difficulty;
+          initBoard();
+        }
+      }
+    }, {
+      text: 'Add/Change Image',
+      action: () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = e => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+              const base64Image = e.target.result;
+              const listElement = taskEl.closest('.list');
+              const listTitle = listElement.querySelector('.list-title').textContent;
+              const listIndex = lists.findIndex(l => l.title === listTitle);
+              const taskIndex = lists[listIndex].tasks.findIndex(t => t.title === task.title);
+              lists[listIndex].tasks[taskIndex].image = base64Image;
+              initBoard();
+            };
+            reader.readAsDataURL(file);
+          }
+        };
+        input.click();
+      }
+    }, {
+      text: 'Remove Image',
+      action: () => {
+        const listElement = e.target.closest('.list');
+        const listTitle = listElement.querySelector('.list-title').textContent;
+        const listIndex = lists.findIndex(l => l.title === listTitle);
+        const taskIndex = lists[listIndex].tasks.findIndex(t => t.title === task.title);
+        lists[listIndex].tasks[taskIndex].image = null;
+        initBoard();
+      }
+    }]);
+  });
+  return taskEl;
+}
+function showContextMenu(e, items) {
+  if (contextMenu) {
+    contextMenu.remove();
+  }
+  contextMenu = document.createElement('div');
+  contextMenu.className = 'context-menu';
+  const x = e.clientX;
+  const y = e.clientY;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  contextMenu.style.visibility = 'hidden';
+  document.body.appendChild(contextMenu);
+  const menuWidth = contextMenu.offsetWidth;
+  const menuHeight = contextMenu.offsetHeight;
+  let left = x;
+  let top = y;
+  if (x + menuWidth > viewportWidth) {
+    left = viewportWidth - menuWidth;
+  }
+  if (y + menuHeight > viewportHeight) {
+    top = viewportHeight - menuHeight;
+  }
+  contextMenu.style.position = 'fixed';
+  contextMenu.style.left = left + 'px';
+  contextMenu.style.top = top + 'px';
+  contextMenu.style.visibility = 'visible';
+  items.forEach(item => {
+    const menuItem = document.createElement('div');
+    menuItem.className = 'context-menu-item';
+    menuItem.textContent = item.text;
+    menuItem.onclick = () => {
+      item.action();
+      contextMenu.remove();
+    };
+    contextMenu.appendChild(menuItem);
+  });
+  document.addEventListener('click', () => {
+    if (contextMenu) {
+      contextMenu.remove();
+    }
+  }, {
+    once: true
+  });
+}
+function saveBoard() {
+  const data = JSON.stringify(lists, null, 2);
+  const blob = new Blob([data], {
+    type: 'application/json'
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'board.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+document.querySelector('.controls').innerHTML = `
+  <button onclick="saveBoard()" title="Save Board">
+    <svg viewBox="0 0 24 24">
+      <path d="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z"/>
+    </svg>
+  </button>
+  <input type="file" id="loadFile" style="display: none" onchange="loadBoard(this.files[0])">
+  <button onclick="document.getElementById('loadFile').click()" title="Load Board">
+    <svg viewBox="0 0 24 24">
+      <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+    </svg>
+  </button>
+`;
+function loadBoard(file) {
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      lists = JSON.parse(e.target.result);
+      initBoard();
+    } catch (error) {
+      alert('Invalid board file!');
+    }
+  };
+  reader.readAsText(file);
+}
+lists = []; // Start with empty lists array
+initBoard();
+function initDragScroll() {
+  const board = document.getElementById('board');
+  let isDown = false;
+  let startX;
+  let scrollLeft;
+  board.addEventListener('mousedown', e => {
+    if (e.target.id === 'board' && board.scrollWidth > board.clientWidth) {
+      isDown = true;
+      board.style.cursor = 'grabbing';
+      startX = e.pageX - board.offsetLeft;
+      scrollLeft = board.scrollLeft;
+    }
+  });
+  board.addEventListener('mouseleave', () => {
+    isDown = false;
+    board.style.cursor = board.scrollWidth > board.clientWidth ? 'grab' : 'default';
+  });
+  board.addEventListener('mouseup', () => {
+    isDown = false;
+    board.style.cursor = board.scrollWidth > board.clientWidth ? 'grab' : 'default';
+  });
+  board.addEventListener('mousemove', e => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - board.offsetLeft;
+    const walk = (x - startX) * 2;
+    board.scrollLeft = scrollLeft - walk;
+  });
+  const updateCursor = () => {
+    board.style.cursor = board.scrollWidth > board.clientWidth ? 'grab' : 'default';
+  };
+  updateCursor();
+  window.addEventListener('resize', updateCursor);
+}
+initDragScroll();</script>
+</body></html>
